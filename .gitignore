@@ -4,3 +4,9 @@ terraform/terraform.tfstate.backup
 terraform/variables.tfvars
 terraform/.terraform.lock.hcl
 build/
+Makefile
+pr09-aws-serverless-ai-assistant.md
+requirements.md
+go/build/
+go/vendor/
+bootstrap

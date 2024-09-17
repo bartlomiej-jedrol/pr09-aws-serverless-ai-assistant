@@ -28,3 +28,13 @@ variable "api_gateway_name" {
   type    = string
   default = "pr09-api-gateway"
 }
+
+variable "lambda_ecr_repo" {
+  type    = string
+  default = "pr09-lambda-ecr-repo"
+}
+
+variable "api_gateway_stage" {
+  type    = string
+  default = "dev"
+}
