@@ -19,9 +19,9 @@ provider "aws" {
 }
 
 # ========== IAM ==========
-# Generic Lambda Role
-resource "aws_iam_role" "lambda_role" {
-  name = var.generic_lambda_role
+# Router Lambda Role
+resource "aws_iam_role" "router_lambda_role" {
+  name = var.router_lambda_role
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -36,6 +36,50 @@ resource "aws_iam_role" "lambda_role" {
   })
 
   managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+}
+
+# Authorizer Lambda Role
+resource "aws_iam_role" "authorizer_lambda_role" {
+  name = var.authorizer_lambda_role
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+
+  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+}
+
+# Router Lambda Inline Policy
+resource "aws_iam_role_policy" "router_lambda_inline_policy" {
+  name = var.router_lambda_inline_policy
+  role = aws_iam_role.router_lambda_role.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = [aws_secretsmanager_secret.token_secret.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = [aws_lambda_function.authorizer_lambda.arn]
+      }
+    ],
+  })
 }
 
 # ========== API Gateway ==========
@@ -72,12 +116,11 @@ resource "aws_iam_role" "api_gateway_role" {
   managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
 }
 
-
-# API Gateway Router Lambda permission
-resource "aws_lambda_permission" "api_gateway_router_lambda" {
-  statement_id  = "AllowAPIGatewayInvokeRouterLambda"
+# API Gateway Authorizer Lambda permission
+resource "aws_lambda_permission" "api_gateway_authorizer_lambda" {
+  statement_id  = "AllowAPIGatewayInvokeAuthorizerLambda"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.router_lambda.function_name
+  function_name = aws_lambda_function.authorizer_lambda.function_name
   principal     = "apigateway.amazonaws.com"
 
   # The /*/* part allows invocation from any stage, method and resource path
@@ -85,11 +128,11 @@ resource "aws_lambda_permission" "api_gateway_router_lambda" {
   source_arn = "${aws_api_gateway_rest_api.api_gateway.execution_arn}/*/*"
 }
 
-# API Gateway Authorizer Lambda permission
-resource "aws_lambda_permission" "api_gateway_authorizer_lambda" {
-  statement_id  = "AllowAPIGatewayInvokeAuthorizerLambda"
+# API Gateway Router Lambda permission
+resource "aws_lambda_permission" "api_gateway_router_lambda" {
+  statement_id  = "AllowAPIGatewayInvokeRouterLambda"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.authorizer_lambda.function_name
+  function_name = aws_lambda_function.router_lambda.function_name
   principal     = "apigateway.amazonaws.com"
 
   # The /*/* part allows invocation from any stage, method and resource path
@@ -116,7 +159,8 @@ resource "aws_api_gateway_method" "router_any" {
   rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
   resource_id   = aws_api_gateway_resource.assistant_proxy.id
   http_method   = "ANY"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.token_authorizer.id
 }
 
 # Catch all integration
@@ -147,16 +191,6 @@ resource "aws_api_gateway_deployment" "router_deployment" {
 }
 
 # ========== Lambdas ==========
-# Authorizer Lambda
-resource "aws_lambda_function" "authorizer_lambda" {
-  function_name = var.authorizer_lambda_name
-  handler       = "main"
-  runtime       = "provided.al2023"
-  filename      = "../go/build/authorizer_lambda.zip"
-  timeout       = 10
-  role = aws_iam_role.lambda_role.arn
-}
-
 # Router Lambda
 resource "aws_lambda_function" "router_lambda" {
   function_name = var.router_lambda_name
@@ -165,7 +199,17 @@ resource "aws_lambda_function" "router_lambda" {
   filename      = "../go/build/router_lambda.zip"
   timeout       = 10
 
-  role = aws_iam_role.lambda_role.arn
+  role = aws_iam_role.router_lambda_role.arn
+}
+
+# Authorizer Lambda
+resource "aws_lambda_function" "authorizer_lambda" {
+  function_name = var.authorizer_lambda_name
+  handler       = "main"
+  runtime       = "provided.al2023"
+  filename      = "../go/build/authorizer_lambda.zip"
+  timeout       = 10
+  role          = aws_iam_role.authorizer_lambda_role.arn
 }
 
 # # Automation Lambda
@@ -220,6 +264,19 @@ resource "aws_ecr_repository" "ecr-repo" {
   name = var.lambda_ecr_repo
 }
 
+# ========== Secrets Manager ==========
+# Secrets Manager secret
+resource "aws_secretsmanager_secret" "token_secret" {
+  name        = var.token_secret_name
+  description = "Access token for API authorization"
+}
+
+# Secrets Manager secret version
+resource "aws_secretsmanager_secret_version" "token_secret_version" {
+  secret_id     = aws_secretsmanager_secret.token_secret.id
+  secret_string = var.token_secret_value
+}
+
 # ========== CloudWatch ==========
 # API Gateway CloudWatch
 resource "aws_cloudwatch_log_group" "cloud_watch_group" {
@@ -235,3 +292,4 @@ resource "aws_cloudwatch_log_group" "router_lambda_log_group" {
 resource "aws_cloudwatch_log_group" "authorizer_lambda_log_group" {
   name = "/aws/lambda/${var.authorizer_lambda_name}"
 }
+

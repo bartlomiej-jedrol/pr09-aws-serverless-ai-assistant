@@ -21,19 +21,29 @@ variable "authorizer_name" {
 }
 
 # ========== Lambdas ==========
-variable "generic_lambda_role" {
-  type    = string
-  default = "pr09-lambda-role"
-}
-
 variable "router_lambda_name" {
   type    = string
   default = "pr09-router-lambda"
 }
 
+variable "router_lambda_role" {
+  type    = string
+  default = "pr09-router-lambda-role"
+}
+
+variable "router_lambda_inline_policy" {
+  type    = string
+  default = "pr09-router-lambda-inline-policy"
+}
+
 variable "authorizer_lambda_name" {
   type    = string
   default = "pr09-authorizer-lambda"
+}
+
+variable "authorizer_lambda_role" {
+  type    = string
+  default = "pr09-authorizer-lambda-role"
 }
 
 variable "automation_lambda_name" {
@@ -46,12 +56,22 @@ variable "automation_lambda_name" {
 #   default = "pr09-automation-lambda-role"
 # }
 
-variable "router_lambda_inline_policy" {
-  type    = string
-  default = "pr09-router-lambda-inline-policy"
-}
-
 variable "lambda_ecr_repo" {
   type    = string
   default = "pr09-lambda-ecr-repo"
+}
+
+# ========== Secrets Manager ==========
+variable "token_secret_name" {
+  type    = string
+  default = "pr09-ai-assistant-api-key"
+}
+
+variable "token_secret_value" {
+  type = string
+}
+
+variable "router_lambda_secrets_manager_policy" {
+  type    = string
+  default = "pr09-router-lambda-secrets-manager-policy"
 }
