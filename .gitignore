@@ -12,3 +12,7 @@ go/build/
 go/vendor/
 bootstrap
 blog_post/
+.env
+posts/
+project_structure.md
+python/

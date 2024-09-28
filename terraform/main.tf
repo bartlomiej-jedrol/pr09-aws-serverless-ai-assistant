@@ -88,12 +88,12 @@ resource "aws_api_gateway_rest_api" "api_gateway" {
 }
 
 # API Gateway Authorizer
-resource "aws_api_gateway_authorizer" "token_authorizer" {
-  name                   = var.authorizer_name
-  rest_api_id            = aws_api_gateway_rest_api.api_gateway.id
-  authorizer_uri         = aws_lambda_function.authorizer_lambda.invoke_arn
-  authorizer_credentials = aws_iam_role.api_gateway_role.arn
-}
+# resource "aws_api_gateway_authorizer" "token_authorizer" {
+#   name                   = var.authorizer_name
+#   rest_api_id            = aws_api_gateway_rest_api.api_gateway.id
+#   authorizer_uri         = aws_lambda_function.authorizer_lambda.invoke_arn
+#   authorizer_credentials = aws_iam_role.api_gateway_role.arn
+# }
 
 # API Gateway Role
 resource "aws_iam_role" "api_gateway_role" {
@@ -113,7 +113,7 @@ resource "aws_iam_role" "api_gateway_role" {
     ]
   })
 
-  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole", "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"]
 }
 
 # API Gateway Authorizer Lambda permission
@@ -159,8 +159,9 @@ resource "aws_api_gateway_method" "router_any" {
   rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
   resource_id   = aws_api_gateway_resource.assistant_proxy.id
   http_method   = "ANY"
-  authorization = "CUSTOM"
-  authorizer_id = aws_api_gateway_authorizer.token_authorizer.id
+  authorization = "NONE"
+  # authorization = "CUSTOM"
+  # authorizer_id = aws_api_gateway_authorizer.token_authorizer.id
 }
 
 # Catch all integration
@@ -175,20 +176,54 @@ resource "aws_api_gateway_integration" "router_lambda" {
 }
 
 # API Gateway Deployment
-resource "aws_api_gateway_deployment" "router_deployment" {
+resource "aws_api_gateway_deployment" "api_gateway_deployment" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  stage_name  = var.api_gateway_stage
 
+  # Triggers determine when a resource should be recreated
   triggers = {
-    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.api_gateway.body))
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.assistant.id,
+      aws_api_gateway_resource.assistant_proxy.id,
+      aws_api_gateway_method.router_any.id,
+      aws_api_gateway_integration.router_lambda.id,
+      aws_api_gateway_authorizer.token_authorizer.id,
+    ]))
   }
 
-  depends_on = [
-    aws_api_gateway_resource.assistant_proxy,
-    aws_api_gateway_method.router_any,
-    aws_api_gateway_integration.router_lambda,
-  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  # depends_on = [
+  #   aws_api_gateway_resource.assistant,
+  #   aws_api_gateway_resource.assistant_proxy,
+  #   aws_api_gateway_method.router_any,
+  #   aws_api_gateway_integration.router_lambda,
+  # ]
 }
+
+# API Gateway Stage
+resource "aws_api_gateway_stage" "api_stage" {
+  deployment_id = aws_api_gateway_deployment.api_gateway_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  stage_name    = var.api_gateway_stage
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway_log_group.arn
+    format = jsonencode({
+      requestId               = "$context.requestId"
+      sourceIp                = "$context.identity.sourceIp"
+      requestTime             = "$context.requestTime"
+      protocol                = "$context.protocol"
+      httpMethod              = "$context.httpMethod"
+      resourcePath            = "$context.resourcePath"
+      routeKey                = "$context.routeKey"
+      status                  = "$context.status"
+      responseLength          = "$context.responseLength"
+      integrationErrorMessage = "$context.integrationErrorMessage"
+    })
+  }
+}
+
 
 # ========== Lambdas ==========
 # Router Lambda
@@ -279,7 +314,7 @@ resource "aws_secretsmanager_secret_version" "token_secret_version" {
 
 # ========== CloudWatch ==========
 # API Gateway CloudWatch
-resource "aws_cloudwatch_log_group" "cloud_watch_group" {
+resource "aws_cloudwatch_log_group" "api_gateway_log_group" {
   name = "/aws/apigateway/${var.api_gateway_name}"
 }
 

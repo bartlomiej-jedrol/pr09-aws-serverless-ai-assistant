@@ -2,15 +2,10 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/config"
-	lambdaSvc "github.com/aws/aws-sdk-go-v2/service/lambda"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 // HandleRequest routes request to handler based on method and availability of "email"
@@ -26,33 +21,33 @@ func HandleRequest(
 	log.Printf("Body: %v", request.Body)
 
 	// Get authorization header
-	authorizationHeader := request.Headers["Authorization"]
+	// authorizationHeader := request.Headers["Authorization"]
 
-	// Load the default config
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Fatalf("Failed to load default config: %v", err)
-	}
+	// // Load the default config
+	// cfg, err := config.LoadDefaultConfig(context.TODO())
+	// if err != nil {
+	// 	log.Fatalf("Failed to load default config: %v", err)
+	// }
 
 	// Create a new Lambda client
-	client := lambdaSvc.NewFromConfig(cfg)
+	// client := lambdaSvc.NewFromConfig(cfg)
 
-	functionName := "pr09-authorizer-lambda"
+	// functionName := "pr09-authorizer-lambda"
 
-	// Prepare the Lambda function input
-	input := &lambdaSvc.InvokeInput{
-		FunctionName: aws.String(functionName),
-		Payload: []byte(fmt.Sprintf(`{
-			"authorizationHeader": "%s",
-		}`, authorizationHeader)),
-	}
+	// // Prepare the Lambda function input
+	// input := &lambdaSvc.InvokeInput{
+	// 	FunctionName: aws.String(functionName),
+	// 	Payload: []byte(fmt.Sprintf(`{
+	// 		"authorizationHeader": "%s",
+	// 	}`, authorizationHeader)),
+	// }
 
 	// Invoke the Authorizer Lambda function
-	r, err := client.Invoke(context.TODO(), input)
-	if err != nil {
-		log.Printf("failed to invoke Authorizer Lambda function")
-	}
-	fmt.Println(r)
+	// r, err := client.Invoke(context.TODO(), input)
+	// if err != nil {
+	// 	log.Printf("failed to invoke Authorizer Lambda function")
+	// }
+	// fmt.Println(r)
 
 	return &events.APIGatewayProxyResponse{
 		StatusCode: 200,
