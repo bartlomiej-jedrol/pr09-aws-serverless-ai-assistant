@@ -1,5 +1,10 @@
 // Terraform variables.
 # ========== API Gateway ==========
+variable "region" {
+  type    = string
+  default = "eu-central-1"
+}
+
 variable "api_gateway_name" {
   type    = string
   default = "pr09-api-gateway"
@@ -31,9 +36,18 @@ variable "router_lambda_role" {
   default = "pr09-router-lambda-role"
 }
 
-variable "router_lambda_inline_policy" {
+variable "link_shortener_lambda_name" {
   type    = string
-  default = "pr09-router-lambda-inline-policy"
+  default = "pr09-link-shortener-lambda"
+}
+
+variable "link_shortener_lambda_role" {
+  type    = string
+  default = "pr09-link-shortener-lambda-role"
+}
+variable "authorizer_lambda_inline_policy" {
+  type    = string
+  default = "pr09-authorizer-lambda-inline-policy"
 }
 
 variable "authorizer_lambda_name" {
@@ -74,4 +88,9 @@ variable "token_secret_value" {
 variable "router_lambda_secrets_manager_policy" {
   type    = string
   default = "pr09-router-lambda-secrets-manager-policy"
+}
+
+# ========== Dub ==========
+variable "dub_api_key" {
+  type = string
 }

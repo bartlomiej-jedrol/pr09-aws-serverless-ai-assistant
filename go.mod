@@ -24,5 +24,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.8 // indirect
 	github.com/aws/smithy-go v1.20.4 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
+	github.com/dubinc/dub-go v0.9.6 // indirect
+	github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
+	github.com/spyzhov/ajson v0.8.0 // indirect
 )
