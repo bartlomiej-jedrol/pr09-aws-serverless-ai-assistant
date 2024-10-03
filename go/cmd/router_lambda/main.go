@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -12,6 +12,33 @@ import (
 	lambdaSvc "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 )
+
+func CallLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Fatalf("failed to load default config: %v", err)
+		return nil, errors.New("failed to load default config")
+	}
+	log.Printf("CallLambda lambdaName: %s", lambdaName)
+	log.Printf("CallLambda body: %s", body)
+
+	input := &lambdaSvc.InvokeInput{
+		FunctionName: aws.String(lambdaName),
+		Payload:      []byte(body),
+	}
+	log.Printf("input of router_lambda to target lambda - input: FunctionName: %s", *input.FunctionName)
+	log.Printf("input of router_lambda to target lambda - input: Payload: %s", string(input.Payload))
+
+	lambda := lambdaSvc.NewFromConfig(cfg)
+	res, err := lambda.Invoke(context.TODO(), input)
+	log.Printf("response from target lambda (CallLambda): %v", *res)
+	log.Printf("response from target lambda (CallLambda) - Payload: %v", string(res.Payload))
+	log.Printf("response from target lambda (CallLambda) - StatusCode: %v", res.StatusCode)
+	if err != nil {
+		log.Printf("failed to invoke Link Shortener Lambda function: %s", err)
+	}
+	return res, nil
+}
 
 // HandleRequest routes request to handler based on method and availability of "email"
 // query parameter.
@@ -25,38 +52,18 @@ func HandleRequest(
 	log.Printf("QueryStringParameters: %v", request.QueryStringParameters)
 	log.Printf("Body: %v", request.Body)
 
-	// Get authorization header
-	// authorizationHeader := request.Headers["Authorization"]
+	res, _ := CallLambda("pr09-link-shortener-lambda", request.Body)
+	log.Printf("response from target lambda (HandleRequest): %v", *res)
 
-	// // Load the default config
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Fatalf("Failed to load default config: %v", err)
-	}
-
-	// Create a new Lambda client
-	client := lambdaSvc.NewFromConfig(cfg)
-
-	functionName := "pr09-authorizer-lambda"
-
-	// Prepare the Lambda function input
-	input := &lambdaSvc.InvokeInput{
-		FunctionName: aws.String(functionName),
-		Payload: []byte(`{
-			"authorizationHeader": ""
-		}`),
-	}
-
-	// Invoke the Authorizer Lambda function
-	r, err := client.Invoke(context.TODO(), input)
-	if err != nil {
-		log.Printf("failed to invoke Authorizer Lambda function")
-	}
-	fmt.Println(r)
+	// lambdaOutput := types.LinkShortenerOutputPayload{}
+	// err := json.Unmarshal(res.Payload, &lambdaOutput)
+	// if err != nil {
+	// 	log.Printf("failed to unmarshal JSON: %s", err)
+	// }
 
 	return &events.APIGatewayProxyResponse{
 		StatusCode: 200,
-		Body:       "Hello, World!",
+		Body:       string(res.Payload),
 	}, nil
 }
 
