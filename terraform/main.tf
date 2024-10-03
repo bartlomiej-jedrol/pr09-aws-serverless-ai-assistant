@@ -7,15 +7,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "bj-terraform-states"
-    key     = "state-pr09-aws-serverless-api/terraform.tfstate"
-    region  = "eu-central-1"
-    encrypt = true
   }
 }
 
 provider "aws" {
-  region = "eu-central-1"
+  region = var.aws_region
 }
 
 # ========== IAM ==========
@@ -80,6 +76,48 @@ resource "aws_iam_role" "link_shortener_lambda_role" {
   })
 
   managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+}
+
+# Test Lambda Role
+resource "aws_iam_role" "test_lambda_role" {
+  name = "test-lambda-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = [
+            "lambda.amazonaws.com"
+          ]
+        }
+      },
+    ]
+  })
+
+  managed_policy_arns = ["arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"]
+}
+
+# User: arn:aws:sts::874397132032:assumed-role/pr09-router-lambda-role/pr09-router-lambda is not authorized to perform: lambda:InvokeFunction on resource: arn:aws:lambda:eu-central-1:874397132032:function:pr09-link-shortener-lambda-role because no identity-based policy allows the lambda:InvokeFunction action
+#         1727951256451
+
+# Router Lambda Inline Policy
+resource "aws_iam_role_policy" "router_lambda_inline_policy" {
+  name = var.router_lambda_inline_policy
+  role = aws_iam_role.router_lambda_role.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction",
+        ]
+        Resource = [aws_lambda_function.link_shortener_lambda.arn]
+      },
+    ],
+  })
 }
 
 # Authorizer Lambda Inline Policy
