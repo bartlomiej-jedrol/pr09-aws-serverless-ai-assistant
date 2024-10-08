@@ -35,9 +35,10 @@ func init() {
 	}
 
 	secretsManagerClient := secretsmanager.NewFromConfig(cfg)
-	secretValue, err := secretsManagerClient.GetSecretValue(context.TODO(), &secretsmanager.GetSecretValueInput{
-		SecretId: &secretName,
-	})
+	secretValue, err := secretsManagerClient.GetSecretValue(
+		context.TODO(), &secretsmanager.GetSecretValueInput{
+			SecretId: &secretName,
+		})
 	if err != nil {
 		log.Fatalf("Failed to get secret value: %v", err)
 	}
@@ -46,8 +47,8 @@ func init() {
 }
 
 // HandleRequest handles the request and returns a response.
-func HandleRequest(
-	request events.APIGatewayCustomAuthorizerRequest) (*events.APIGatewayCustomAuthorizerResponse, error) {
+func HandleRequest(request events.APIGatewayCustomAuthorizerRequest) (
+	*events.APIGatewayCustomAuthorizerResponse, error) {
 	token := request.AuthorizationToken
 	token = strings.TrimPrefix(token, "Bearer ")
 

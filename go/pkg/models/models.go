@@ -1,4 +1,4 @@
-package types
+package models
 
 type LinkShortenerInputPayload struct {
 	LongLink string `json:"longLink"`
