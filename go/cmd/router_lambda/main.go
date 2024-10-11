@@ -4,16 +4,23 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 	lambdaSvc "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/pkg/utils"
 )
 
-func CallLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error) {
+var (
+	ErrorBadRequest = errors.New("bad request")
+)
+
+func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		log.Fatalf("failed to load default config: %v", err)
@@ -40,6 +47,27 @@ func CallLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error)
 	return res, nil
 }
 
+// buildResponseBody builds API Gateway response body
+func buildResponseBody(body any) string {
+	if err, ok := body.(error); ok {
+		return fmt.Sprintf(`"error": "%s"`, err.Error())
+	}
+	return ""
+}
+
+// BuildAPIResponse builds API Gateway response.
+func buildAPIResponse(statusCode int, body any) (*events.APIGatewayProxyResponse, error) {
+	response := &events.APIGatewayProxyResponse{
+		StatusCode: statusCode,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+	}
+
+	response.Body = buildResponseBody(body)
+	return response, nil
+}
+
 // HandleRequest routes request to handler based on method and availability of "email"
 // query parameter.
 func HandleRequest(
@@ -52,7 +80,12 @@ func HandleRequest(
 	log.Printf("QueryStringParameters: %v", request.QueryStringParameters)
 	log.Printf("Body: %v", request.Body)
 
-	res, _ := CallLambda("pr09-link-shortener-lambda", request.Body)
+	err := utils.UnmarshalJSON([]byte(request.Body))
+	if err != nil {
+		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
+	}
+
+	res, _ := callLambda("pr09-link-shortener-lambda", request.Body)
 	log.Printf("response from target lambda (HandleRequest): %v", *res)
 
 	// lambdaOutput := types.LinkShortenerOutputPayload{}
