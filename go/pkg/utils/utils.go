@@ -3,10 +3,13 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/pkg/models"
 	"github.com/joho/godotenv"
 )
 
@@ -33,4 +36,22 @@ func GetEnvVariable(envVarName string) *string {
 		return nil
 	}
 	return &envVar
+}
+
+// UnmarshalJSON unmarshals provided JSON
+func UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		err := errors.New("empty JSON provided for unmarshaling")
+		log.Printf("Unmarshal JSON: %v", err)
+		return err
+	}
+
+	slackMessage := models.SlackMessage{}
+	err := json.Unmarshal(data, &slackMessage)
+	if err != nil {
+		err := errors.New("failed to unmarshal JSON")
+		log.Printf("Unmarshal JSON: %v", err)
+		return err
+	}
+	return nil
 }
