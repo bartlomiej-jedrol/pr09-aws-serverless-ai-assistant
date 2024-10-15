@@ -18,13 +18,13 @@ var secret string
 
 // init is called when the Lambda function is initialized.
 func init() {
-	log.Println("INFO [init] Initializing authorizer_lambda")
+	log.Println("INFO: init - initializing authorizer_lambda")
 
 	ev, _ := awsInt.GetEnvironmentVariable("SECRET_NAME")
 
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		log.Printf("ERROR [init] Failed to load default config: %v", err)
+		log.Printf("ERROR: init - Failed to load default config: %v", err)
 	}
 
 	secretsManagerClient := secretsmanager.NewFromConfig(cfg)
@@ -33,7 +33,7 @@ func init() {
 			SecretId: ev,
 		})
 	if err != nil {
-		log.Printf("ERROR [init] Failed to get secret value from AWS Secret Manager: %v", err)
+		log.Printf("ERROR: init - failed to get secret value from AWS Secret Manager: %v", err)
 	}
 	secret = aws.ToString(secretValue.SecretString)
 }
@@ -41,6 +41,8 @@ func init() {
 // HandleRequest handles the request and returns a response.
 func HandleRequest(request events.APIGatewayCustomAuthorizerRequest) (
 	*events.APIGatewayCustomAuthorizerResponse, error) {
+	log.Printf("INFO: HandleRequest - handling authorizer_lambda event: %v", request)
+
 	token := request.AuthorizationToken
 	token = strings.TrimPrefix(token, "Bearer ")
 

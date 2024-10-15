@@ -13,7 +13,7 @@ import (
 
 var (
 	ErrorFailedToLoadEnvFile       error = errors.New("failed to load .env file")
-	ErrorBlankEnvVar               error = errors.New("blank environment variable")
+	ErrorFailedToGetEnvVar         error = errors.New("failed to get environment variable")
 	ErrorFailedToLoadDefaultConfig error = errors.New("failed to load default config")
 )
 
@@ -34,13 +34,12 @@ func GetEnvironmentVariable(envVarName string) (*string, error) {
 	err := godotenv.Load()
 	if err != nil {
 		log.Printf("ERROR: GetEnvironmentVariable - %v, %v", ErrorFailedToLoadEnvFile, err)
-		return nil, ErrorFailedToLoadEnvFile
 	}
 
 	ev := os.Getenv(envVarName)
 	if ev == "" {
-		log.Printf("ERROR: GetEnvironmentVariable - %v, %s", ErrorBlankEnvVar, envVarName)
-		return nil, ErrorBlankEnvVar
+		log.Printf("ERROR: GetEnvironmentVariable - %v, %s", ErrorFailedToGetEnvVar, envVarName)
+		return nil, ErrorFailedToGetEnvVar
 	}
 	return &ev, nil
 }

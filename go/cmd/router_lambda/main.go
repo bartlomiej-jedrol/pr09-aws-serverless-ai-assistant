@@ -23,7 +23,7 @@ var (
 
 // callLambda calls provided lambda with provided body.
 func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error) {
-	log.Printf("INFO: callLambda - Calling lambda: %s from router_lambda", lambdaName)
+	log.Printf("INFO: callLambda - calling lambda: %s from router_lambda", lambdaName)
 
 	cfg, err := awsInt.LoadDefaultConfig()
 	if err != nil {
@@ -38,7 +38,7 @@ func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error)
 	lambda := lambdaSvc.NewFromConfig(cfg)
 	r, err := lambda.Invoke(context.TODO(), input)
 	if err != nil {
-		log.Printf("ERROR: callLambda - Failed to call lambda: %s, error: %v", lambdaName, err)
+		log.Printf("ERROR: callLambda - failed to call lambda: %s, error: %v", lambdaName, err)
 		return nil, ErrorInternalServerError
 	}
 	return r, nil
@@ -46,7 +46,7 @@ func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error)
 
 // buildResponseBody builds API Gateway response body.
 func buildResponseBody(body any) string {
-	log.Printf("INFO: buildResponseBody - Building API Gateway response body")
+	log.Printf("INFO: buildResponseBody - building API Gateway response body")
 
 	// In case of error the caller expects response body in the format: "error": "error message"
 	if err, ok := body.(error); ok {
@@ -57,7 +57,7 @@ func buildResponseBody(body any) string {
 
 // BuildAPIResponse builds API Gateway response.
 func buildAPIResponse(statusCode int, body any) (*events.APIGatewayProxyResponse, error) {
-	log.Printf("INFO: buildAPIResponse - Building API Gateway response")
+	log.Printf("INFO: buildAPIResponse - building API Gateway response")
 
 	r := &events.APIGatewayProxyResponse{
 		StatusCode: statusCode,
@@ -74,8 +74,7 @@ func buildAPIResponse(statusCode int, body any) (*events.APIGatewayProxyResponse
 func HandleRequest(
 	request events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
 	// Logging
-	log.Printf("INFO: HandleRequest - Handling router_lambda")
-	log.Printf("Request: %v", request)
+	log.Printf("INFO: HandleRequest - handling router_lambda event: %v", request)
 	log.Printf("HTTPMethod: %v", request.HTTPMethod)
 	log.Printf("Headers: %v", request.Headers)
 	log.Printf("PathParameters: %v", request.PathParameters)
@@ -92,7 +91,6 @@ func HandleRequest(
 	if err != nil {
 		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
 	}
-	log.Printf("response from target lambda (HandleRequest): %v", *r)
 
 	// lambdaOutput := types.LinkShortenerOutputPayload{}
 	// err := json.Unmarshal(res.Payload, &lambdaOutput)
