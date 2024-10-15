@@ -1,56 +1,70 @@
 package utils
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"log"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/pkg/models"
 	"github.com/joho/godotenv"
 )
+
+// LoadDefaultConfig load default AWS config.
+func LoadDefaultConfig() (aws.Config, error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Printf("ERROR: LoadDefaultConfig - %v, %v", ErrorFailedToLoadDefaultConfig, err)
+		return aws.Config{}, ErrorFailedToLoadDefaultConfig
+	}
+	return cfg, nil
+}
 
 // GenerateToken generates a random token of the specified length
 func GenerateToken(length int) (string, error) {
 	bytes := make([]byte, length)
 	_, err := rand.Read(bytes)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate token: %v", err)
+		log.Printf("ERROR: GenerateToken - %v, %v", ErrorFailedToGenerateToken, err)
+		return "", ErrorFailedToGenerateToken
 	}
 	token := base64.URLEncoding.EncodeToString(bytes)[:length]
 	return token, nil
 }
 
-func GetEnvVariable(envVarName string) *string {
+// GetEnvironmentVariable returns environment variable's value.
+func GetEnvironmentVariable(envVarName string) (*string, error) {
+	log.Printf("INFO: GetEnvironmentVariable - Entering GetEnvironmentVariable")
+
 	err := godotenv.Load()
 	if err != nil {
-		log.Printf("failed to load .env file")
+		log.Printf("ERROR: GetEnvironmentVariable - %v, %v", ErrorFailedToLoadEnvFile, err)
+		return nil, ErrorFailedToLoadEnvFile
 	}
 
-	envVar := os.Getenv(envVarName)
-	if envVar == "" {
-		log.Printf("%s environment variable is blank", envVarName)
-		return nil
+	ev := os.Getenv(envVarName)
+	if ev == "" {
+		log.Printf("ERROR: GetEnvironmentVariable - %v, %s", ErrorBlankEnvVar, envVarName)
+		return nil, ErrorBlankEnvVar
 	}
-	return &envVar
+	return &ev, nil
 }
 
-// UnmarshalJSON unmarshals provided JSON
+// UnmarshalJSON unmarshals provided JSON.
 func UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
-		err := errors.New("empty JSON provided for unmarshaling")
-		log.Printf("Unmarshal JSON: %v", err)
-		return err
+		log.Printf("ERROR: UnmarshalJSON - %v", ErrorEmptyJSONForUnmarshaling)
+		return ErrorEmptyJSONForUnmarshaling
 	}
 
-	slackMessage := models.SlackMessage{}
-	err := json.Unmarshal(data, &slackMessage)
+	slackMessages := []models.SlackMessage{}
+	err := json.Unmarshal(data, &slackMessages)
 	if err != nil {
-		err := errors.New("failed to unmarshal JSON")
-		log.Printf("Unmarshal JSON: %v", err)
+		log.Printf("ERROR: UnmarshalJSON - %v, %v", ErrorFailedToUnmarshalJSON, err)
 		return err
 	}
 	return nil
