@@ -11,12 +11,8 @@ var (
 	ErrorFailedToUnmarshalJSON    error = errors.New("failed to unmarshal JSON")
 )
 
-type LinkShortenerInputPayload struct {
-	LongLink string
-}
-
-type LinkShortenerOutputPayload struct {
-	ShortLink string
+type SlackResponse struct {
+	Response string `json:"response"`
 }
 
 type Element struct {

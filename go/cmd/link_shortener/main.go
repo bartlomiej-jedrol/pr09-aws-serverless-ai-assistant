@@ -18,13 +18,8 @@ var dubToken string
 func init() {
 	log.Println("INFO: init - initializing link_shortener lambda")
 
-	envVarName := "DUB_API_KEY"
-	token, err := awsInt.GetEnvironmentVariable(envVarName)
+	token, err := awsInt.GetEnvironmentVariable("DUB_API_KEY")
 	if err != nil {
-		log.Printf("ERROR: init - %v, %v, %v", awsInt.ErrorFailedToGetEnvVar, envVarName, err)
-	}
-	if token == nil {
-		log.Printf("ERROR: init - %v, %v", awsInt.ErrorFailedToGetEnvVar, envVarName)
 		return
 	}
 	dubToken = *token
@@ -47,21 +42,36 @@ func shortenLinkWithDub(token string, longLink string) string {
 }
 
 // HandleRequest handler for link_shortner lambda.
-func HandleRequest(ctx context.Context, request json.RawMessage) (slack.LinkShortenerOutputPayload, error) {
+func HandleRequest(ctx context.Context, request json.RawMessage) (slack.SlackResponse, error) {
 	log.Printf("INFO: HandleRequest - handling link_shortener lambda event: %s", string(request))
 
-	inputPayload := slack.LinkShortenerInputPayload{}
-	err := json.Unmarshal(request, &inputPayload)
+	payload := []slack.SlackMessage{}
+	err := json.Unmarshal(request, &payload)
 	if err != nil {
 		log.Printf("ERROR: HandleRequest - %v, %v", slack.ErrorFailedToUnmarshalJSON, err)
-		return slack.LinkShortenerOutputPayload{}, err
+		return slack.SlackResponse{}, err
+	}
+	log.Printf("payload: %v", payload)
+
+	var longLink string
+	if len(payload) > 0 && len(payload[0].Elements) > 0 && len(payload[0].Elements[0].Elements) > 0 {
+		for _, elem := range payload[0].Elements[0].Elements {
+			element, ok := elem.(map[string]interface{})
+			log.Printf("INFO: HandleRequest - element: %v", element)
+			if ok && element["type"] == "link" {
+				longLink = element["url"].(string)
+				break
+			}
+		}
 	}
 
-	log.Printf("INFO: HandleRequest - long link: %s", inputPayload.LongLink)
-	outputPayload := slack.LinkShortenerOutputPayload{}
-	outputPayload.ShortLink = shortenLinkWithDub(dubToken, inputPayload.LongLink)
-	log.Printf("INFO: HandleRequest - long link: %s", outputPayload.ShortLink)
-	return outputPayload, nil
+	log.Printf("INFO: HandleRequest - long link: %s", longLink)
+
+	shortLink := shortenLinkWithDub(dubToken, longLink)
+	log.Printf("INFO: HandleRequest - short link: %s", shortLink)
+
+	r := slack.SlackResponse{Response: shortLink}
+	return r, nil
 }
 
 func main() {

@@ -19,3 +19,4 @@ python/
 content/
 backend.hcl
 data/
+go/cmd/test
