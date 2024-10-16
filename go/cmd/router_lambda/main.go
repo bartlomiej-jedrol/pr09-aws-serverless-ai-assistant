@@ -36,12 +36,12 @@ func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error)
 	}
 
 	lambda := lambdaSvc.NewFromConfig(cfg)
-	r, err := lambda.Invoke(context.TODO(), input)
+	resp, err := lambda.Invoke(context.TODO(), input)
 	if err != nil {
 		log.Printf("ERROR: callLambda - failed to call lambda: %s, error: %v", lambdaName, err)
 		return nil, ErrorInternalServerError
 	}
-	return r, nil
+	return resp, nil
 }
 
 // buildResponseBody builds API Gateway response body.
@@ -59,14 +59,14 @@ func buildResponseBody(body any) string {
 func buildAPIResponse(statusCode int, body any) (*events.APIGatewayProxyResponse, error) {
 	log.Printf("INFO: buildAPIResponse - building API Gateway response")
 
-	r := &events.APIGatewayProxyResponse{
+	resp := &events.APIGatewayProxyResponse{
 		StatusCode: statusCode,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
 	}
-	r.Body = buildResponseBody(body)
-	return r, nil
+	resp.Body = buildResponseBody(body)
+	return resp, nil
 }
 
 // HandleRequest routes request to handler based on method and availability of "email"
@@ -82,12 +82,15 @@ func HandleRequest(
 	log.Printf("Body: %v", request.Body)
 	log.Println("New logger added for test")
 
-	err := slack.UnmarshalJSON([]byte(request.Body))
+	payload, err := slack.UnmarshalSlackJSON([]byte(request.Body))
 	if err != nil {
 		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
 	}
 
-	r, err := callLambda("pr09-link-shortener-lambda", request.Body)
+	skill, err := slack.ExtractElements(payload)
+	log.Printf("skill: %s", skill)
+
+	resp, err := callLambda("pr09-link-shortener-lambda", request.Body)
 	if err != nil {
 		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
 	}
@@ -100,7 +103,7 @@ func HandleRequest(
 
 	return &events.APIGatewayProxyResponse{
 		StatusCode: 200,
-		Body:       string(r.Payload),
+		Body:       string(resp.Payload),
 	}, nil
 }
 

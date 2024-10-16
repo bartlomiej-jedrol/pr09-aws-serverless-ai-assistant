@@ -17,7 +17,6 @@ var dubToken string
 // init is called when the Lambda function is initialized.
 func init() {
 	log.Println("INFO: init - initializing link_shortener lambda")
-
 	token, err := awsInt.GetEnvironmentVariable("DUB_API_KEY")
 	if err != nil {
 		return
@@ -34,44 +33,30 @@ func shortenLinkWithDub(token string, longLink string) string {
 	}
 
 	ctx := context.Background()
-	res, err := d.Links.Create(ctx, req)
+	resp, err := d.Links.Create(ctx, req)
 	if err != nil {
 		log.Printf("ERROR: shortenLinkWithDub - failed to shorten link with Dub: %v", err)
 	}
-	return res.ShortLink
+	return resp.ShortLink
 }
 
 // HandleRequest handler for link_shortner lambda.
-func HandleRequest(ctx context.Context, request json.RawMessage) (slack.SlackResponse, error) {
+func HandleRequest(ctx context.Context, request json.RawMessage) (resp slack.SlackResponse, err error) {
 	log.Printf("INFO: HandleRequest - handling link_shortener lambda event: %s", string(request))
-
-	payload := []slack.SlackMessage{}
-	err := json.Unmarshal(request, &payload)
+	payload, err := slack.UnmarshalSlackJSON(request)
 	if err != nil {
-		log.Printf("ERROR: HandleRequest - %v, %v", slack.ErrorFailedToUnmarshalJSON, err)
-		return slack.SlackResponse{}, err
+		return resp, err
 	}
-	log.Printf("payload: %v", payload)
-
-	var longLink string
-	if len(payload) > 0 && len(payload[0].Elements) > 0 && len(payload[0].Elements[0].Elements) > 0 {
-		for _, elem := range payload[0].Elements[0].Elements {
-			element, ok := elem.(map[string]interface{})
-			log.Printf("INFO: HandleRequest - element: %v", element)
-			if ok && element["type"] == "link" {
-				longLink = element["url"].(string)
-				break
-			}
-		}
+	elements, err := slack.ExtractElements(payload)
+	if err != nil {
+		return resp, err
 	}
+	link := elements["link"]
 
-	log.Printf("INFO: HandleRequest - long link: %s", longLink)
-
-	shortLink := shortenLinkWithDub(dubToken, longLink)
+	shortLink := shortenLinkWithDub(dubToken, link)
 	log.Printf("INFO: HandleRequest - short link: %s", shortLink)
-
-	r := slack.SlackResponse{Response: shortLink}
-	return r, nil
+	resp = slack.SlackResponse{Response: shortLink}
+	return resp, nil
 }
 
 func main() {
