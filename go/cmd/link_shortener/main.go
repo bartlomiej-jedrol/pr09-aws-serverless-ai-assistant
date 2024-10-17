@@ -12,21 +12,21 @@ import (
 	"github.com/dubinc/dub-go/models/operations"
 )
 
-var dubToken string
+var dubAPIKey string
 
-// init is called when the Lambda function is initialized.
+// init initialises execution environment for AWS Lambda.
 func init() {
 	log.Println("INFO: init - initializing link_shortener lambda")
-	token, err := awsInt.GetEnvironmentVariable("DUB_API_KEY")
+	apiKey, err := awsInt.GetEnvironmentVariable("DUB_API_KEY")
 	if err != nil {
 		return
 	}
-	dubToken = *token
+	dubAPIKey = *apiKey
 }
 
 // shortenLinkWithDub shortens provided link
-func shortenLinkWithDub(token string, longLink string) string {
-	d := dub.New(dub.WithSecurity(token))
+func shortenLinkWithDub(apiKey string, longLink string) string {
+	d := dub.New(dub.WithSecurity(apiKey))
 
 	req := &operations.CreateLinkRequestBody{
 		URL: longLink,
@@ -53,7 +53,7 @@ func HandleRequest(ctx context.Context, request json.RawMessage) (resp slack.Sla
 	}
 	link := elements["link"]
 
-	shortLink := shortenLinkWithDub(dubToken, link)
+	shortLink := shortenLinkWithDub(dubAPIKey, link)
 	log.Printf("INFO: HandleRequest - short link: %s", shortLink)
 	resp = slack.SlackResponse{Response: shortLink}
 	return resp, nil

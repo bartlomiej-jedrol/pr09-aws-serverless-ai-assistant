@@ -6,13 +6,6 @@ import (
 	"log"
 )
 
-var (
-	ErrorEmptyJSONForUnmarshaling error = errors.New("empty JSON provided for unmarshaling")
-	ErrorFailedToUnmarshalJSON    error = errors.New("failed to unmarshal JSON")
-	ErrorNoRequiredSlackElements  error = errors.New("slack payload does not have required elements")
-	ErrorTypeAssertionFailed      error = errors.New("type assertion failed")
-)
-
 type SlackResponse struct {
 	Response string `json:"response"`
 }
@@ -28,28 +21,37 @@ type SlackMessage struct {
 	Elements []Element `json:"elements"`
 }
 
+var (
+	ErrorEmptyJSONForUnmarshaling error = errors.New("empty JSON provided for unmarshaling")
+	ErrorFailedToUnmarshalJSON    error = errors.New("failed to unmarshal JSON")
+	ErrorNoRequiredSlackElements  error = errors.New("slack payload does not have required elements")
+	ErrorTypeAssertionFailed      error = errors.New("type assertion failed")
+)
+
 // UnmarshalSlackJSON unmarshals Slack message JSON.
-func UnmarshalSlackJSON(request json.RawMessage) (payload []SlackMessage, err error) {
+func UnmarshalSlackJSON(request json.RawMessage) ([]SlackMessage, error) {
+	payload := []SlackMessage{}
 	if len(request) == 0 {
 		log.Printf("ERROR: UnmarshalSlackJSON - %v", ErrorEmptyJSONForUnmarshaling)
-		return payload, ErrorEmptyJSONForUnmarshaling
+		return nil, ErrorEmptyJSONForUnmarshaling
 	}
-	err = json.Unmarshal(request, &payload)
+	err := json.Unmarshal(request, &payload)
 	if err != nil {
 		log.Printf("ERROR: UnmarshalSlackJSON - %v, %v", ErrorFailedToUnmarshalJSON, err)
-		return payload, ErrorFailedToUnmarshalJSON
+		return nil, ErrorFailedToUnmarshalJSON
 	}
 	log.Printf("payload: %v", payload)
-	return payload, err
+	return payload, nil
 }
 
 // ValidElements validates if Slack message has required elements.
-func ValidElements(payload []SlackMessage) (isValid bool) {
+func ValidElements(payload []SlackMessage) bool {
 	return len(payload) > 0 && len(payload[0].Elements) > 0 && len(payload[0].Elements[0].Elements) > 0
 }
 
-// ExtractMessageParts extracts link from Slack message.
-func ExtractElements(payload []SlackMessage) (elements map[string]string, err error) {
+// ExtractElements extracts elements from Slack message.
+func ExtractElements(payload []SlackMessage) (map[string]string, error) {
+	elements := map[string]string{}
 	if !ValidElements(payload) {
 		log.Printf("ERROR: ExtractLink - %v", ErrorNoRequiredSlackElements)
 		return elements, ErrorNoRequiredSlackElements
@@ -69,7 +71,6 @@ func ExtractElements(payload []SlackMessage) (elements map[string]string, err er
 				log.Printf("ERROR: ExtractElements - %v", ErrorTypeAssertionFailed)
 				return elements, ErrorTypeAssertionFailed
 			}
-			break
 		}
 		if element["type"] == "link" {
 			elements["link"], ok = element["url"].(string)
@@ -77,9 +78,8 @@ func ExtractElements(payload []SlackMessage) (elements map[string]string, err er
 				log.Printf("ERROR: ExtractElements - %v", ErrorTypeAssertionFailed)
 				return elements, ErrorTypeAssertionFailed
 			}
-			break
 		}
 	}
-	log.Printf("INFO: ExtractElements - link: %s", elements["link"])
+	log.Printf("INFO: ExtractElements - elements: %v", elements)
 	return elements, nil
 }

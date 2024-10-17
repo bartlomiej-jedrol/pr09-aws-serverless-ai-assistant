@@ -13,13 +13,25 @@ import (
 	lambdaSvc "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	awsInt "github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/aws"
+	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/openai"
 	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/slack"
 )
 
 var (
+	openaiAPIKey             string
 	ErrorBadRequest          error = errors.New("bad request")
 	ErrorInternalServerError error = errors.New("internal server error")
 )
+
+// init initialises execution environment for AWS Lambda.
+func init() {
+	log.Println("INFO: init - initializing router_lambda")
+	apiKey, err := awsInt.GetEnvironmentVariable("OPENAI_API_KEY")
+	if err != nil {
+		return
+	}
+	openaiAPIKey = *apiKey
+}
 
 // callLambda calls provided lambda with provided body.
 func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error) {
@@ -82,29 +94,28 @@ func HandleRequest(
 	log.Printf("Body: %v", request.Body)
 	log.Println("New logger added for test")
 
-	payload, err := slack.UnmarshalSlackJSON([]byte(request.Body))
+	slackPayload, err := slack.UnmarshalSlackJSON([]byte(request.Body))
 	if err != nil {
 		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
 	}
 
-	skill, err := slack.ExtractElements(payload)
-	log.Printf("skill: %s", skill)
-
-	resp, err := callLambda("pr09-link-shortener-lambda", request.Body)
+	elements, err := slack.ExtractElements(slackPayload)
 	if err != nil {
-		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
+		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
 	}
 
-	// lambdaOutput := types.LinkShortenerOutputPayload{}
-	// err := json.Unmarshal(res.Payload, &lambdaOutput)
+	intention := elements["text"]
+	err = openai.CreateChatCompletions(openaiAPIKey, "gpt-4o", intention)
+	if err != nil {
+		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+	}
+
+	return buildAPIResponse(http.StatusOK, `{"test": "ok"}`)
+
+	// resp, err := callLambda("pr09-link-shortener-lambda", request.Body)
 	// if err != nil {
-	// 	log.Printf("failed to unmarshal JSON: %s", err)
+	// 	return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
 	// }
-
-	return &events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Body:       string(resp.Payload),
-	}, nil
 }
 
 func main() {
