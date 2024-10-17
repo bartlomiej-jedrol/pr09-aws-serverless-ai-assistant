@@ -94,7 +94,11 @@ variable "router_lambda_secrets_manager_policy" {
   default = "pr09-router-lambda-secrets-manager-policy"
 }
 
-# ========== Dub API ==========
+# ========== API Keys ==========
 variable "dub_api_key" {
+  type = string
+}
+
+variable "openai_api_key" {
   type = string
 }

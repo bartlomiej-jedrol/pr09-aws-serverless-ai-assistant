@@ -263,6 +263,12 @@ resource "aws_lambda_function" "router_lambda" {
   timeout       = 10
 
   role = aws_iam_role.router_lambda_role.arn
+
+  environment {
+    variables = {
+      OPENAI_API_KEY = var.openai_api_key
+    }
+  }
 }
 
 # Authorizer Lambda
