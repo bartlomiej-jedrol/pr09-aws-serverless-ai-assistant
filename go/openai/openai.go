@@ -21,6 +21,14 @@ type OpenAIPayload struct {
 	Messages []Message `json:"messages"`
 }
 
+type Choice struct {
+	Message `json:"message"`
+}
+
+type OpenAIResponse struct {
+	Choices []Choice `json:"choices"`
+}
+
 var (
 	chatCompletionsEndpoint = "https://api.openai.com/v1/chat/completions"
 )
@@ -106,19 +114,24 @@ func sendRequest(enpointURL string, APIKey string, requestBody []byte) ([]byte, 
 
 // CreateChatCompletions returns one or more predicted completions.
 // It takes prompt and model, commmunicates with OpenAI models, and returns one or more predicted completions.
-func CreateChatCompletions(openaiAPIKey string, model string, userContent string) error {
-	systemContent := `Recognise a skill.
-		Respond with JSON object. skill (link_shortener|other)
-		`
+func CreateChatCompletion(openaiAPIKey string, model string, userContent string, systemContent string) (string, error) {
 	jsonRequestData, err := buildBody(model, systemContent, userContent)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	jsonResponseData, err := sendRequest(chatCompletionsEndpoint, openaiAPIKey, jsonRequestData)
 	if err != nil {
-		return err
+		return "", err
 	}
-	log.Printf("openai response: %s", string(jsonResponseData))
-	return nil
+
+	response := OpenAIResponse{}
+	err = json.Unmarshal(jsonResponseData, &response)
+	if err != nil {
+		log.Printf("ERROR: CreateChatCompletions - failed to unmarshal JSON, %v", err)
+		return "", err
+	}
+	content := response.Choices[0].Message.Content
+	log.Printf("openai content: %v", content)
+	return content, nil
 }

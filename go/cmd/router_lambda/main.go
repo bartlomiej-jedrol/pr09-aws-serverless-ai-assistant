@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -58,13 +59,14 @@ func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error)
 
 // buildResponseBody builds API Gateway response body.
 func buildResponseBody(body any) string {
-	log.Printf("INFO: buildResponseBody - building API Gateway response body")
-
-	// In case of error the caller expects response body in the format: "error": "error message"
-	if err, ok := body.(error); ok {
-		return fmt.Sprintf(`"error": "%v"`, err)
+	switch v := body.(type) {
+	case error:
+		return fmt.Sprintf(`{"error":"%v"}`, v)
+	case string:
+		return fmt.Sprintf(`{"response":"%s"}`, v)
+	default:
+		return ""
 	}
-	return ""
 }
 
 // BuildAPIResponse builds API Gateway response.
@@ -79,6 +81,27 @@ func buildAPIResponse(statusCode int, body any) (*events.APIGatewayProxyResponse
 	}
 	resp.Body = buildResponseBody(body)
 	return resp, nil
+}
+
+// extractSkill..
+func extractSkill(completion string) (string, error) {
+	m := map[string]string{}
+	err := json.Unmarshal([]byte(completion), &m)
+	if err != nil {
+		log.Printf("ERROR: extractSkill - failed to unmarshal completion, %v", err)
+		return "", err
+	}
+	return m["skill"], nil
+}
+
+// mapSkillToLambda..
+func mapSkillToLambda(skill string) string {
+	switch skill {
+	case "link_shortener":
+		return "pr09-link-shortener-lambda"
+	default:
+		return ""
+	}
 }
 
 // HandleRequest routes request to handler based on method and availability of "email"
@@ -105,17 +128,38 @@ func HandleRequest(
 	}
 
 	intention := elements["text"]
-	err = openai.CreateChatCompletions(openaiAPIKey, "gpt-4o", intention)
+	systemContent := `Recognise a skill based on intention provided by user.
+		Respond with JSON object. skill (link_shortener|other). 
+		Do not add any wrappers like quotes or backticks apart from pure JSON object.
+		Examples###
+		user: short
+		ai: {"skill":"link_shortener"} 
+		`
+	completion, err := openai.CreateChatCompletion(openaiAPIKey, "gpt-4o", intention, systemContent)
+	if err != nil {
+		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+	}
+	log.Printf("completion: %s", completion)
+
+	skill, err := extractSkill(completion)
+	log.Printf("skill: %s", skill)
 	if err != nil {
 		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
 	}
 
-	return buildAPIResponse(http.StatusOK, `{"test": "ok"}`)
+	lambda := mapSkillToLambda(skill)
+	if lambda == "" {
+		log.Printf("INFO: HandleRequest - mapping of skill to lambda failed")
+		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+	}
 
-	// resp, err := callLambda("pr09-link-shortener-lambda", request.Body)
+	// resp, err := callLambda(lambda, request.Body)
 	// if err != nil {
 	// 	return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
 	// }
+
+	return buildAPIResponse(http.StatusOK, skill)
+	// return buildAPIResponse(http.StatusOK, resp.Payload)
 }
 
 func main() {
