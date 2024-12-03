@@ -5,21 +5,22 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	lambdaSvc "github.com/aws/aws-sdk-go-v2/service/lambda"
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/api"
 	awsInt "github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/aws"
 	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/openai"
-	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/slack"
+	"github.com/bartlomiej-jedrol/pr09-aws-serverless-ai-assistant/go/telegram"
 )
 
 var (
 	openaiAPIKey             string
+	awsConfig                *aws.Config
 	ErrorBadRequest          error = errors.New("bad request")
 	ErrorInternalServerError error = errors.New("internal server error")
 )
@@ -27,59 +28,34 @@ var (
 // init initialises execution environment for AWS Lambda.
 func init() {
 	log.Println("INFO: init - initializing router_lambda")
+	cfg, err := awsInt.LoadDefaultConfig()
+	if err != nil {
+		return
+	}
+	awsConfig = cfg
+
 	apiKey, err := awsInt.GetEnvironmentVariable("OPENAI_API_KEY")
 	if err != nil {
 		return
 	}
-	openaiAPIKey = *apiKey
+	openaiAPIKey = apiKey
 }
 
 // callLambda calls provided lambda with provided body.
 func callLambda(lambdaName string, body string) (*lambdaSvc.InvokeOutput, error) {
 	log.Printf("INFO: callLambda - calling lambda: %s from router_lambda", lambdaName)
 
-	cfg, err := awsInt.LoadDefaultConfig()
-	if err != nil {
-		return nil, ErrorInternalServerError
-	}
-
 	input := &lambdaSvc.InvokeInput{
 		FunctionName: aws.String(lambdaName),
 		Payload:      []byte(body),
 	}
 
-	lambda := lambdaSvc.NewFromConfig(cfg)
+	lambda := lambdaSvc.NewFromConfig(*awsConfig)
 	resp, err := lambda.Invoke(context.TODO(), input)
 	if err != nil {
 		log.Printf("ERROR: callLambda - failed to call lambda: %s, error: %v", lambdaName, err)
 		return nil, ErrorInternalServerError
 	}
-	return resp, nil
-}
-
-// buildResponseBody builds API Gateway response body.
-func buildResponseBody(body any) string {
-	switch v := body.(type) {
-	case error:
-		return fmt.Sprintf(`{"error":"%v"}`, v)
-	case string:
-		return fmt.Sprintf(`{"response":"%s"}`, v)
-	default:
-		return ""
-	}
-}
-
-// BuildAPIResponse builds API Gateway response.
-func buildAPIResponse(statusCode int, body any) (*events.APIGatewayProxyResponse, error) {
-	log.Printf("INFO: buildAPIResponse - building API Gateway response")
-
-	resp := &events.APIGatewayProxyResponse{
-		StatusCode: statusCode,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-	}
-	resp.Body = buildResponseBody(body)
 	return resp, nil
 }
 
@@ -109,57 +85,60 @@ func mapSkillToLambda(skill string) string {
 func HandleRequest(
 	request events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
 	// Logging
-	log.Printf("INFO: HandleRequest - handling router_lambda event: %v", request)
-	log.Printf("HTTPMethod: %v", request.HTTPMethod)
-	log.Printf("Headers: %v", request.Headers)
-	log.Printf("PathParameters: %v", request.PathParameters)
-	log.Printf("QueryStringParameters: %v", request.QueryStringParameters)
-	log.Printf("Body: %v", request.Body)
+	log.Printf("INFO: HandleRequest - handling router_lambda event: %+v", request)
+	log.Printf("HTTPMethod: %+v", request.HTTPMethod)
+	log.Printf("Headers: %+v", request.Headers)
+	log.Printf("PathParameters: %+v", request.PathParameters)
+	log.Printf("QueryStringParameters: %+v", request.QueryStringParameters)
+	log.Printf("Body: %+v", request.Body)
 	log.Println("New logger added for test")
 
-	slackPayload, err := slack.UnmarshalSlackJSON([]byte(request.Body))
-	if err != nil {
-		return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
+	sourceSystem := request.Headers["Source-System"]
+	if sourceSystem != "telegram" {
+		return api.BuildResponse(http.StatusBadRequest, ErrorBadRequest)
 	}
 
-	elements, err := slack.ExtractElements(slackPayload)
+	message, err := telegram.UnmarshalJSON([]byte(request.Body))
 	if err != nil {
-		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+		return api.BuildResponse(http.StatusInternalServerError, ErrorInternalServerError)
 	}
+	log.Printf("telegram message: %+v", message)
 
-	intention := elements["text"]
-	systemContent := `Recognise a skill based on intention provided by user.
-		Respond with JSON object. skill (link_shortener|other). 
+	text := message.Text
+	log.Printf("telegram text: %+v", text)
+
+	systemContent := `Recognise a skill based on text provided by user.
+		Respond with JSON object. skill (link_shortener|other).
 		Do not add any wrappers like quotes or backticks apart from pure JSON object.
 		Examples###
-		user: short
-		ai: {"skill":"link_shortener"} 
+		user: short ...
+		ai: {"skill":"link_shortener"}
 		`
-	completion, err := openai.CreateChatCompletion(openaiAPIKey, "gpt-4o", intention, systemContent)
+	completion, err := openai.CreateChatCompletion(openaiAPIKey, "gpt-4o", text, systemContent)
 	if err != nil {
-		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+		return api.BuildResponse(http.StatusInternalServerError, ErrorInternalServerError)
 	}
 	log.Printf("completion: %s", completion)
 
 	skill, err := extractSkill(completion)
 	log.Printf("skill: %s", skill)
 	if err != nil {
-		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+		return api.BuildResponse(http.StatusInternalServerError, ErrorInternalServerError)
 	}
 
 	lambda := mapSkillToLambda(skill)
 	if lambda == "" {
 		log.Printf("INFO: HandleRequest - mapping of skill to lambda failed")
-		return buildAPIResponse(http.StatusInternalServerError, ErrorInternalServerError)
+		return api.BuildResponse(http.StatusInternalServerError, ErrorInternalServerError)
 	}
 
-	// resp, err := callLambda(lambda, request.Body)
-	// if err != nil {
-	// 	return buildAPIResponse(http.StatusBadRequest, ErrorBadRequest)
-	// }
+	r, err := callLambda("pr09-link-shortener-lambda", text)
+	if err != nil {
+		return api.BuildResponse(http.StatusBadRequest, ErrorBadRequest)
+	}
+	log.Printf("r: %+v\n", r)
 
-	return buildAPIResponse(http.StatusOK, skill)
-	// return buildAPIResponse(http.StatusOK, resp.Payload)
+	return api.BuildResponse(http.StatusOK, "request received")
 }
 
 func main() {
